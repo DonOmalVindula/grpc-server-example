@@ -1,6 +1,9 @@
 package com.cw2server;
 
 import com.cw2client.DistributedLock;
+import com.cw2client.DistributedTx;
+import com.cw2client.DistributedTxCoordinator;
+import com.cw2client.DistributedTxParticipant;
 import com.grpc.generated.Item;
 import com.grpc.generated.OperationStatus;
 import io.grpc.Server;
@@ -21,10 +24,19 @@ public class InventoryServer {
             AtomicBoolean(false);
     private byte[] leaderData;
     private ConcurrentHashMap<String, Item> inventory = new ConcurrentHashMap<>();
+    DistributedTx transaction;
+    AddItemServiceImpl addItemService;
+    UpdateItemServiceImpl updateItemService;
+    ListItemServiceImpl listItemService;
+    DeleteItemServiceImpl deleteItemService;
+    UpdateStockServiceImpl updateStockService;
+    MakeReservationServiceImpl makeReservationService;
+    PlaceOrderServiceImpl placeOrderService;
 
 
     public static void main(String[] args) throws Exception {
         DistributedLock.setZooKeeperURL("localhost:2181");
+        DistributedTx.setZooKeeperURL("localhost:2181");
         // Provide port using args
         int serverPort;
         if (args.length < 1) {
@@ -40,26 +52,45 @@ public class InventoryServer {
             InterruptedException, IOException, KeeperException {
         this.serverPort = port;
         leaderLock = new
-                DistributedLock("InventoryServerTestCluster",
+                DistributedLock("InventoryServerCluster",
                 buildServerData(host, port));
+
+        addItemService = new AddItemServiceImpl(this);
+        updateItemService = new UpdateItemServiceImpl(this);
+        listItemService = new ListItemServiceImpl(this);
+        deleteItemService = new DeleteItemServiceImpl(this);
+        updateStockService = new UpdateStockServiceImpl(this);
+        makeReservationService = new MakeReservationServiceImpl(this);
+        placeOrderService = new PlaceOrderServiceImpl(this);
+
+        transaction = new DistributedTxParticipant(addItemService);
     }
 
     public void startServer() throws IOException,
             InterruptedException, KeeperException {
         Server server = ServerBuilder
                 .forPort(serverPort)
-                .addService(new AddItemServiceImpl(this))
-                .addService(new UpdateItemServiceImpl(this))
-                .addService(new ListItemServiceImpl(this))
-                .addService(new DeleteItemServiceImpl(this))
-                .addService(new UpdateStockServiceImpl(this))
-                .addService(new MakeReservationServiceImpl(this))
-                .addService(new PlaceOrderServiceImpl(this))
+                .addService(addItemService)
+                .addService(updateItemService)
+                .addService(listItemService)
+                .addService(deleteItemService)
+                .addService(updateStockService)
+                .addService(makeReservationService)
+                .addService(placeOrderService)
                 .build();
         server.start();
         System.out.println("InventoryServer Started and ready to accept requests on port " + serverPort);
         tryToBeLeader();
         server.awaitTermination();
+    }
+    public DistributedTx getTransaction() {
+        return transaction;
+    }
+
+    private void beTheLeader() {
+        System.out.println("I got the leader lock. Now acting as primary");
+                isLeader.set(true);
+        transaction = new DistributedTxCoordinator(addItemService);
     }
 
     public static String buildServerData(String IP, int
@@ -123,10 +154,10 @@ public class InventoryServer {
                     Thread.sleep(10000);
                     leader = leaderLock.tryAcquireLock();
                 }
-                System.out.println("I got the leader lock. Now acting as primary");
-                        isLeader.set(true);
                 currentLeaderData = null;
+                beTheLeader();
             } catch (Exception e){
+                e.printStackTrace();
             }
         }
     }
