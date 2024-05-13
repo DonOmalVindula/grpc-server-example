@@ -1,0 +1,85 @@
+syntax = "proto3";
+option java_multiple_files = true; 
+package com.grpc.generated;
+
+
+message Item {
+    string id = 1;
+    string name = 2;
+    double price = 3;
+    int32 quantity = 4;
+    bool available = 5;
+    bool isSentByPrimary = 6;
+}
+
+message ItemRequest {
+    string id = 1;
+    bool isSentByPrimary = 2;
+}
+
+message Query {
+    string searchKeyword = 1;
+    bool isSentByPrimary = 2;
+}
+
+message ItemList {
+    repeated Item items = 1;
+}
+
+message StockUpdateRequest {
+    string itemId = 1;
+    int32 additionalQuantity = 2;
+    bool isSentByPrimary = 3;
+}
+
+message ReservationRequest {
+    string itemId = 1;
+    int32 quantity = 2;
+    string reservationDate = 3;
+    string customerId = 4;
+    bool isSentByPrimary = 5;
+}
+
+message OrderRequest {
+    string itemId = 1;
+    int32 quantity = 2;
+    string neededBy = 3;
+    string workshopId = 4;
+    bool isSentByPrimary = 5;
+}
+
+message OperationStatus {
+    bool success = 1;
+    string message = 2;
+}
+
+service AddItemService {
+    rpc addItem(Item) returns (OperationStatus);
+}
+
+service DeleteItemService {
+    rpc deleteItem(ItemRequest) returns (OperationStatus);
+}
+
+service UpdateItemService {
+    rpc updateItem(Item) returns (OperationStatus);
+}
+
+service ListItemsService {
+    rpc listItems(Query) returns (ItemList);
+}
+
+service UpdateStockService {
+    rpc updateStock(StockUpdateRequest) returns (OperationStatus);
+}
+
+service MakeReservationService {
+    rpc makeReservation(ReservationRequest) returns (OperationStatus);
+}
+
+service PlaceOrderService {
+    rpc placeOrder(OrderRequest) returns (OperationStatus);
+}
+
+
+
