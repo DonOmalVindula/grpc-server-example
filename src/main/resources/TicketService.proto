@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+package com.grpc.generated;
+
+message Ticket {
+    string id = 1;
+    string type = 2;
+    double price = 3;
+    int32 quantity = 4;
+    bool includesAfterParty = 5;
+    int32 afterPartyQuantity = 6;
+    bool isSentByPrimary = 7;
+    string concertId = 8;
+}
+
+message Concert {
+    string id = 1;
+    string name = 2;
+    string date = 3;
+    repeated Ticket tickets = 4;
+    bool isSentByPrimary = 5;
+}
+
+message ConcertRequest {
+    string concertId = 1;
+    bool isSentByPrimary = 2;
+}
+
+message TicketRequest {
+    string ticketId = 1;
+    bool isSentByPrimary = 2;
+}
+
+message StockUpdateRequest {
+    string ticketId = 1;
+    int32 additionalConcertQuantity = 2;
+    int32 additionalAfterPartyQuantity = 3;
+    bool isSentByPrimary = 4;
+}
+
+message ReservationRequest {
+    string ticketId = 1;
+    int32 quantity = 2;
+    string reservationDate = 3;
+    string customerId = 4;
+    bool includesAfterParty = 5;
+    bool isSentByPrimary = 6;
+}
+
+message OperationStatus {
+    bool success = 1;
+    string message = 2;
+}
+
+message ConcertList {
+    repeated Concert concerts = 1;
+}
+
+message TicketList {
+    repeated Ticket tickets = 1;
+}
+
+message Query {
+    string searchKeyword = 1;
+    bool isSentByPrimary = 2;
+}
+
+service ConcertService {
+    rpc addConcert(Concert) returns (OperationStatus);
+    rpc deleteConcert(ConcertRequest) returns (OperationStatus);
+    rpc listConcerts(Query) returns (ConcertList);
+    rpc checkConcertExists (ConcertRequest) returns (OperationStatus);
+}
+
+service TicketService {
+    rpc addTicket(Ticket) returns (OperationStatus);
+    rpc updateTicket(Ticket) returns (OperationStatus);
+    rpc deleteTicket(TicketRequest) returns (OperationStatus);
+    rpc listTickets(Query) returns (TicketList);
+    rpc checkTicketExists(TicketRequest) returns (OperationStatus);
+}
+
+service MakeReservationService {
+    rpc makeReservation(ReservationRequest) returns (OperationStatus);
+}
