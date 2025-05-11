@@ -1,14 +1,9 @@
 package com.cw2server;
 
-import com.cw2client.DistributedLock;
-import com.cw2client.DistributedTx;
-import com.cw2client.DistributedTxCoordinator;
-import com.cw2client.DistributedTxParticipant;
-import com.grpc.generated.Item;
-import com.grpc.generated.OperationStatus;
+import com.grpc.generated.Concert;
+import com.grpc.generated.Ticket;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
-import io.grpc.stub.StreamObserver;
 import org.apache.zookeeper.KeeperException;
 
 import java.io.IOException;
@@ -18,150 +13,194 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class InventoryServer {
-    private DistributedLock leaderLock;
-    private int serverPort;
-    private AtomicBoolean isLeader = new
-            AtomicBoolean(false);
-    private byte[] leaderData;
-    private ConcurrentHashMap<String, Item> inventory = new ConcurrentHashMap<>();
-    DistributedTx transaction;
-    AddItemServiceImpl addItemService;
-    UpdateItemServiceImpl updateItemService;
-    ListItemServiceImpl listItemService;
-    DeleteItemServiceImpl deleteItemService;
-    UpdateStockServiceImpl updateStockService;
-    MakeReservationServiceImpl makeReservationService;
-    PlaceOrderServiceImpl placeOrderService;
 
+    private final DistributedLock leaderLock;
+    private final int serverPort;
+    private final AtomicBoolean isLeader = new AtomicBoolean(false);
+    private byte[] leaderData;
+
+    private final ConcurrentHashMap<String, Ticket> inventory = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Concert> concertStore = new ConcurrentHashMap<>();
+    private DistributedTx transaction;
+    private final TicketServiceImpl ticketService;
+    private final ConcertServiceImpl concertService;
+    private final MakeReservationServiceImpl makeReservationService;
 
     public static void main(String[] args) throws Exception {
         DistributedLock.setZooKeeperURL("localhost:2181");
         DistributedTx.setZooKeeperURL("localhost:2181");
-        // Provide port using args
-        int serverPort;
+
         if (args.length < 1) {
-            System.out.println("Usage InventoryServer <port>");
+            System.out.println("INVALID Input: Use InventoryServer <port>");
             System.exit(1);
         }
-        serverPort = Integer.parseInt(args[0]);
+
+        int serverPort = Integer.parseInt(args[0]);
         InventoryServer server = new InventoryServer("localhost", serverPort);
         server.startServer();
     }
 
-    public InventoryServer(String host, int port) throws
-            InterruptedException, IOException, KeeperException {
+    public InventoryServer(String host, int port) throws InterruptedException, IOException, KeeperException {
         this.serverPort = port;
-        leaderLock = new
-                DistributedLock("InventoryServerCluster",
-                buildServerData(host, port));
+        leaderLock = new DistributedLock("InventoryServerCluster", buildServerData(host, port));
 
-        addItemService = new AddItemServiceImpl(this);
-        updateItemService = new UpdateItemServiceImpl(this);
-        listItemService = new ListItemServiceImpl(this);
-        deleteItemService = new DeleteItemServiceImpl(this);
-        updateStockService = new UpdateStockServiceImpl(this);
+        ticketService = new TicketServiceImpl(this);
+        concertService = new ConcertServiceImpl(this);
         makeReservationService = new MakeReservationServiceImpl(this);
-        placeOrderService = new PlaceOrderServiceImpl(this);
 
-        transaction = new DistributedTxParticipant(addItemService);
+        transaction = new DistributedTxParticipant(makeReservationService);
     }
 
-    public void startServer() throws IOException,
-            InterruptedException, KeeperException {
-        Server server = ServerBuilder
-                .forPort(serverPort)
-                .addService(addItemService)
-                .addService(updateItemService)
-                .addService(listItemService)
-                .addService(deleteItemService)
-                .addService(updateStockService)
+    public void startServer() throws IOException, InterruptedException, KeeperException {
+        seedDummyData();
+
+        Server server = ServerBuilder.forPort(serverPort)
+                .addService(ticketService)
+                .addService(concertService)
                 .addService(makeReservationService)
-                .addService(placeOrderService)
                 .build();
+
         server.start();
-        System.out.println("InventoryServer Started and ready to accept requests on port " + serverPort);
+        System.out.println("InventoryServer started on port " + serverPort);
         tryToBeLeader();
         server.awaitTermination();
     }
-    public DistributedTx getTransaction() {
-        return transaction;
-    }
 
     private void beTheLeader() {
-        System.out.println("I got the leader lock. Now acting as primary");
-                isLeader.set(true);
-        transaction = new DistributedTxCoordinator(addItemService);
+        System.out.println("This server is now acting as the primary (leader).");
+        isLeader.set(true);
+        transaction = new DistributedTxCoordinator(makeReservationService);
     }
 
-    public static String buildServerData(String IP, int
-            port) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(IP).append(":").append(port);
-        return builder.toString();
+    public static String buildServerData(String IP, int port) {
+        return IP + ":" + port;
     }
 
     public boolean isLeader() {
         return isLeader.get();
     }
+
     private synchronized void setCurrentLeaderData(byte[] leaderData) {
         this.leaderData = leaderData;
     }
 
-    private void tryToBeLeader() throws KeeperException,
-            InterruptedException {
-        Thread leaderCampaignThread = new Thread(new
-                LeaderCampaignThread());
+    private void tryToBeLeader() throws KeeperException, InterruptedException {
+        Thread leaderCampaignThread = new Thread(new LeaderCampaignThread());
         leaderCampaignThread.start();
     }
 
-    public void setInventory(ConcurrentHashMap<String, Item> inventory) {
-        this.inventory = inventory;
+    public DistributedTx getTransaction() {
+        return transaction;
     }
 
-    public ConcurrentHashMap<String, Item> getInventory() {
+    public ConcurrentHashMap<String, Ticket> getInventory() {
         return inventory;
+    }
+
+    public ConcurrentHashMap<String, Concert> getConcertStore() {
+        return concertStore;
     }
 
     public synchronized String[] getCurrentLeaderData() {
         return new String(leaderData).split(":");
     }
-    public List<String[]> getOthersData() throws
-            KeeperException, InterruptedException {
+
+    public List<String[]> getOthersData() throws KeeperException, InterruptedException {
         List<String[]> result = new ArrayList<>();
         List<byte[]> othersData = leaderLock.getOthersData();
         for (byte[] data : othersData) {
-            String[] dataStrings = new
-                    String(data).split(":");
-            result.add(dataStrings);
+            result.add(new String(data).split(":"));
         }
         return result;
     }
 
     class LeaderCampaignThread implements Runnable {
         private byte[] currentLeaderData = null;
+
         @Override
         public void run() {
-            System.out.println("Starting the leader Campaign");
+            System.out.println("Starting leader election thread...");
             try {
                 boolean leader = leaderLock.tryAcquireLock();
+
                 while (!leader) {
-                    byte[] leaderData =
-                            leaderLock.getLockHolderData();
-                    if (currentLeaderData != leaderData) {
-                        currentLeaderData = leaderData;
-                        setCurrentLeaderData(currentLeaderData);
+                    byte[] newLeader = leaderLock.getLockHolderData();
+
+                    if (currentLeaderData == null || !java.util.Arrays.equals(currentLeaderData, newLeader)) {
+                        currentLeaderData = newLeader;
+                        setCurrentLeaderData(newLeader);
+                        System.out.println("Current leader: " + new String(currentLeaderData));
                     }
-                    Thread.sleep(10000);
+
+                    Thread.sleep(5000); // Re-check every 5s
                     leader = leaderLock.tryAcquireLock();
                 }
-                currentLeaderData = null;
+
+                System.out.println("Acquired leadership.");
                 beTheLeader();
-            } catch (Exception e){
+
+            } catch (Exception e) {
+                System.err.println("Error during leader election: " + e.getMessage());
                 e.printStackTrace();
             }
         }
     }
 
+    private void seedDummyData() {
+        // Seed Concert
+        Concert concert = Concert.newBuilder()
+                .setId("bns")
+                .setName("Bathiya & Santhush Live in Concert")
+                .setDate("2025-07-26")
+                .build();
+
+        Concert concert2 = Concert.newBuilder()
+                .setId("westlife")
+                .setName("Westlife Coast to Coast Tour")
+                .setDate("2026-01-31")
+                .build();
+
+        concertStore.put(concert.getId(), concert);
+        concertStore.put(concert2.getId(), concert2);
+
+        // Seed Tickets
+        Ticket vipTicket = Ticket.newBuilder()
+                .setId("bns-vip")
+                .setConcertId("bns")
+                .setType("VIP")
+                .setPrice(200.0)
+                .setQuantity(50)
+                .setIncludesAfterParty(true)
+                .setAfterPartyQuantity(20)
+                .setIsSentByPrimary(true)
+                .build();
+
+        Ticket regTicket = Ticket.newBuilder()
+                .setId("bns-reg")
+                .setConcertId("bns")
+                .setType("Regular")
+                .setPrice(100.0)
+                .setQuantity(100)
+                .setIncludesAfterParty(false)
+                .setAfterPartyQuantity(0)
+                .setIsSentByPrimary(true)
+                .build();
+
+        Ticket vipTicket2 = Ticket.newBuilder()
+                .setId("westlife-vip")
+                .setConcertId("westlife")
+                .setType("VIP")
+                .setPrice(300.0)
+                .setQuantity(50)
+                .setIncludesAfterParty(true)
+                .setAfterPartyQuantity(20)
+                .setIsSentByPrimary(true)
+                .build();
+
+        inventory.put(vipTicket.getId(), vipTicket);
+        inventory.put(regTicket.getId(), regTicket);
+        inventory.put(vipTicket2.getId(), vipTicket2);
+
+        System.out.println("Dummy concert and tickets seeded.");
+    }
 }
-
-

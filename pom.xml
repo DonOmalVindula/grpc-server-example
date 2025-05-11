@@ -42,9 +42,9 @@
       <version>1.36.0</version>
     </dependency>
     <dependency>
-      <groupId>com.cw2-client</groupId>
-      <artifactId>cw-client</artifactId>
-      <version>3.0.0</version>
+      <groupId>org.apache.zookeeper</groupId>
+      <artifactId>zookeeper</artifactId>
+      <version>3.6.2</version>
     </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
