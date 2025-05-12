@@ -61,6 +61,7 @@ public class InventoryServer {
                 .build();
 
         server.start();
+        addShutdownHook(); // Add shutdown hook to release lock on exit
         System.out.println("InventoryServer started on port " + serverPort);
         tryToBeLeader();
         server.awaitTermination();
@@ -70,6 +71,19 @@ public class InventoryServer {
         System.out.println("This server is now acting as the primary (leader).");
         isLeader.set(true);
         transaction = new DistributedTxCoordinator(makeReservationService);
+    }
+
+    private void addShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                if (isLeader()) {
+                    leaderLock.releaseLock();
+                    System.out.println("Leader lock released on shutdown.");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }));
     }
 
     public static String buildServerData(String IP, int port) {
@@ -99,6 +113,10 @@ public class InventoryServer {
 
     public ConcurrentHashMap<String, Concert> getConcertStore() {
         return concertStore;
+    }
+
+    public int getServerPort() {
+        return serverPort;
     }
 
     public synchronized String[] getCurrentLeaderData() {

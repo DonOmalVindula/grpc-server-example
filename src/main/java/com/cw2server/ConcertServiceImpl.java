@@ -117,7 +117,7 @@ public class ConcertServiceImpl extends ConcertServiceGrpc.ConcertServiceImplBas
     @Override
     public void listConcerts(Query request, StreamObserver<ConcertList> responseObserver) {
         String keyword = request.getSearchKeyword().toLowerCase();
-        System.out.println("🔍 Listing concerts with keyword: " + keyword);
+        System.out.println("Listing concerts with keyword: " + keyword);
 
         ConcertList.Builder responseBuilder = ConcertList.newBuilder();
 

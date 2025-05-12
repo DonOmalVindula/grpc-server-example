@@ -50,27 +50,40 @@ public class MakeReservationServiceImpl extends MakeReservationServiceGrpc.MakeR
                     + " | Qty: " + request.getQuantity()
                     + " | Includes After-Party: " + request.getIncludesAfterParty());
 
+
             if (server.isLeader()) {
                 System.out.println("Acting as Leader (Primary Node)");
-                startDistributedTx(request);
-                propagateToFollowers(request);
 
-                if (canReserve(request)) {
-                    if (request.getIncludesAfterParty()) {
-                        System.out.println("Combo reservation...");
-                        ((DistributedTxCoordinator) server.getTransaction()).perform();
+                DistributedLock reservationLock = new DistributedLock(
+                        "ReservationLock-" + request.getTicketId(), server.buildServerData("localhost", server.getServerPort())
+                );
+
+                try {
+                    reservationLock.acquireLock();
+                    System.out.println("Acquired lock for reservation.");
+
+                    startDistributedTx(request);
+                    propagateToFollowers(request);
+
+                    if (canReserve(request)) {
+                        if (request.getIncludesAfterParty()) {
+                            System.out.println("Combo reservation...");
+                            ((DistributedTxCoordinator) server.getTransaction()).perform();
+                        } else {
+                            System.out.println("Regular ticket reservation (no after-party)...");
+                            commitReservation();
+                        }
+                        status = true;
                     } else {
-                        System.out.println("Regular ticket reservation (no after-party)...");
-                        commitReservation();
+                        System.out.println("Reservation check failed — Not enough stock.");
+                        if (request.getIncludesAfterParty()) {
+                            ((DistributedTxCoordinator) server.getTransaction()).sendGlobalAbort();
+                        }
                     }
-                    status = true;
-                } else {
-                    System.out.println("Reservation check failed — Not enough stock.");
-                    if (request.getIncludesAfterParty()) {
-                        ((DistributedTxCoordinator) server.getTransaction()).sendGlobalAbort();
-                    }
+                } finally {
+                    reservationLock.releaseLock();
+                    System.out.println("Released lock for reservation.");
                 }
-
             } else {
                 System.out.println("Acting as Secondary Node");
 
