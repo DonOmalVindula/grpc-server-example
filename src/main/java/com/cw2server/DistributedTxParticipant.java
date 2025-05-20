@@ -49,15 +49,11 @@ public class DistributedTxParticipant extends DistributedTx implements Watcher {
     }
     private void handleRootDataChange() {
         try {
-            byte[] data =
-                    client.getData(transactionRoot, true);
+            byte[] data = client.getData(transactionRoot, true);
             String dataString = new String(data);
-            if
-            (DistributedTxCoordinator.GLOBAL_COMMIT.equals(dataString)) {
+            if (DistributedTxCoordinator.GLOBAL_COMMIT.equals(dataString)) {
                 listener.onGlobalCommit();
-            } else if
-            (DistributedTxCoordinator.GLOBAL_ABORT.equals(dataString
-                    )) {
+            } else if (DistributedTxCoordinator.GLOBAL_ABORT.equals(dataString)) {
                 listener.onGlobalAbort();
             } else {
                 System.out.println("Unknown data change in the root : " + dataString);

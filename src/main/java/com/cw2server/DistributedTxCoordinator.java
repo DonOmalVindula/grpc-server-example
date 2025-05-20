@@ -48,7 +48,7 @@ public class DistributedTxCoordinator extends DistributedTx {
     public void sendGlobalCommit() throws
             KeeperException, InterruptedException {
         if (currentTransaction != null) {
-            System.out.println("Sending global commit for " + currentTransaction);
+            System.out.println("Sending GLOBAL_COMMIT for " + currentTransaction);
             client.write(currentTransaction,
                     DistributedTxCoordinator.GLOBAL_COMMIT.getBytes(StandardCharsets.UTF_8));
             listener.onGlobalCommit();
@@ -57,7 +57,7 @@ public class DistributedTxCoordinator extends DistributedTx {
 
     public void sendGlobalAbort() throws KeeperException, InterruptedException {
         if (currentTransaction != null) {
-            System.out.println("Sending global abort for " + currentTransaction);
+            System.out.println("Sending GLOBAL_ABORT for " + currentTransaction);
             client.write(currentTransaction,
                     DistributedTxCoordinator.GLOBAL_ABORT.getBytes(StandardCharsets.UTF_8));
             listener.onGlobalAbort();

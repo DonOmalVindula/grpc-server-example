@@ -147,9 +147,6 @@ public class ConcertServiceImpl extends ConcertServiceGrpc.ConcertServiceImplBas
 
     private void applyAddConcert(Concert request) {
         server.getConcertStore().put(request.getId(), request);
-        for (Ticket ticket : request.getTicketsList()) {
-            server.getInventory().put(ticket.getId(), ticket);
-        }
     }
 
     private boolean applyDeleteConcert(String concertId) {

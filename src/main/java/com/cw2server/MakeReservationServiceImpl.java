@@ -26,8 +26,8 @@ public class MakeReservationServiceImpl extends MakeReservationServiceGrpc.MakeR
     }
 
     private void startDistributedTx(ReservationRequest request) throws IOException {
-        server.getTransaction().start(request.getReservationDate(), UUID.randomUUID().toString());
-        tempDataHolder = new Pair<>(request.getReservationDate(), request);
+        server.getTransaction().start(request.getCustomerId(), UUID.randomUUID().toString());
+        tempDataHolder = new Pair<>(request.getCustomerId(), request);
     }
 
     @Override

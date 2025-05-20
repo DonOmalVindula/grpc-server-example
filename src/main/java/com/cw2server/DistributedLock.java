@@ -42,7 +42,7 @@ public class DistributedLock implements Watcher {
 
     private void createRootNode() throws
             InterruptedException, UnsupportedEncodingException, KeeperException {
-        lockPath = client.createNode(lockPath, false, CreateMode.PERSISTENT, "".getBytes(StandardCharsets.UTF_8));
+        lockPath = client.createNode(lockPath, false, CreateMode.PERSISTENT, null);
         System.out.println("Root node created at " + lockPath);
     }
 
@@ -53,7 +53,7 @@ public class DistributedLock implements Watcher {
         System.out.println("Child node created at " + childPath);
     }
 
-    public void acquireLock() throws KeeperException, InterruptedException, UnsupportedEncodingException {
+    public void acquireLock() throws KeeperException, InterruptedException {
         String smallestNode = findSmallestNodePath();
         if (smallestNode.equals(childPath)) {
             isAcquired = true;
@@ -78,7 +78,7 @@ public class DistributedLock implements Watcher {
         isAcquired = false;
     }
 
-    public boolean tryAcquireLock() throws KeeperException, InterruptedException, UnsupportedEncodingException {
+    public boolean tryAcquireLock() throws KeeperException, InterruptedException {
         String smallestNode = findSmallestNodePath();
         if (smallestNode.equals(childPath)) {
             isAcquired = true;
@@ -96,8 +96,8 @@ public class DistributedLock implements Watcher {
         List<String> childrenNodePaths = client.getChildrenNodePaths(lockPath);
         for (String path : childrenNodePaths) {
             path = lockPath + "/" + path;
+            // If not equal means, it belongs to other node
             if (!path.equals(childPath)) {
-                System.out.println("path :" + path + ", childPath" + childPath);
                 System.out.println("Fetching data of node :" + path);
                 byte[] data = client.getData(path, false);
                 result.add(data);
@@ -118,7 +118,9 @@ public class DistributedLock implements Watcher {
 
     @Override
     public void process(WatchedEvent event) {
+        // Connection state
         Event.KeeperState state = event.getState();
+        // Kind of event that occurred
         Event.EventType type = event.getType();
         if (Event.KeeperState.SyncConnected == state) {
             if (Event.EventType.None == type) {
